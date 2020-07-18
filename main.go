@@ -14,12 +14,12 @@ type EchoHandler struct {
 }
 
 func (d *EchoHandler) OnNewConnect(c *noodle.WsConnect) bool {
-	log.Infof("[%d] 新建连接", c.ID)
+	log.Infof("[%d] New连接", c.ID)
 	return true
 }
 
 func (d *EchoHandler) OnDelConnect(c *noodle.WsConnect) {
-	log.Infof("[%d] 关闭连接", c.ID)
+	log.Infof("[%d] Del连接", c.ID)
 }
 
 func (d *EchoHandler) OnProcessMsg(c *noodle.WsConnect, msg *noodle.Message) bool {
