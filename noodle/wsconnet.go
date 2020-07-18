@@ -3,7 +3,7 @@ package noodle
 import (
 	"net/http"
 	"noodlenet/deps/src/github.com/gorilla/websocket"
-	"noodlenet/deps/src/github.com/zapLogger"
+	log "noodlenet/deps/src/github.com/zapLogger"
 	"sync/atomic"
 	"time"
 )
@@ -15,7 +15,7 @@ import (
 //}
 
 type WsConnect struct {
-	id      uint32 //唯一标示
+	ID      uint32 //唯一标示
 	addr    string
 	url     string
 	timeout int //传输超时
@@ -34,38 +34,24 @@ type WsConnect struct {
 	lastTick  time.Time
 }
 
-func (w *WsConnect) write() {
-	var m *Message
-	tick := time.NewTimer(time.Second * time.Duration(w.timeout))
-	//gm := GMManager.GetGMessage()
-	for true {
-		if !w.IsStop() || m == nil {
-			select {
-			case m = <-w.cWrite:
-			//case <-gm.c: //广播
-			//	if gm.fun == nil || gm.fun(w) {
-			//		m = gm.msg
-			//	}
-			//	gm = GMManager.GetGMessage()
-			case <-tick.C:
-				if w.isTimeout() {
-					w.Stop()
-				}
-			}
-		}
-		if m == nil || m.Data == nil {
-			continue
-		}
-		err := w.conn.WriteMessage(websocket.BinaryMessage, m.Data)
-		if err != nil {
-			zapLogger.Errorf("[%v] write err:%v", w.id, err)
-			break
-		} else {
-			zapLogger.Infof("[%v] write success:%+v", w.id, m)
-		}
-		m = nil
-		w.lastTick = time.Now()
-	}
+func NewConnect(addr, url string, handler IMsgHandler) *WsConnect {
+	con := new(WsConnect)
+	con.ID = ConnectManager.getConnectID()
+	con.addr = addr
+	con.url = url
+	con.connTyp = ConnTypeListen
+	con.handler = handler
+	con.listener = &http.Server{Addr: addr}
+
+	ConnectManager.addConnect(con)
+
+	log.Debugf("[%v] New Connect addr:%s url:%s", con.ID, addr, url)
+	return con
+}
+
+func (w *WsConnect) SetTimeout(timeout int) *WsConnect {
+	w.timeout = timeout
+	return w
 }
 
 func (w *WsConnect) Send(m *Message) (re bool) {
@@ -76,7 +62,7 @@ func (w *WsConnect) Send(m *Message) (re bool) {
 		w.cWrite <- m
 		re = true
 	}, func(i interface{}) {
-		zapLogger.Errorf("Send Message Failed ,err = ", i)
+		log.Errorf("Send Message Failed ,err = ", i)
 		re = false
 	})
 	return
@@ -84,63 +70,22 @@ func (w *WsConnect) Send(m *Message) (re bool) {
 
 func (w *WsConnect) Stop() {
 	if atomic.CompareAndSwapInt32(&w.stop, 0, 1) {
-		Go(func() {
-			if w.init {
-				w.handler.OnDelMsgQue(w)
-			}
-			w.available = false
-			if w.cWrite != nil {
-				close(w.cWrite)
-			}
+		if w.init {
+			w.handler.OnDelConnect(w)
+		}
+		w.available = false
+		if w.cWrite != nil {
+			close(w.cWrite)
+		}
 
-			ConnectMapSync.Lock()
-			delete(ConnectMap, w.id)
-			ConnectMapSync.Unlock()
-			zapLogger.Infof("[%v] close ", w.id)
-		})
+		ConnectManager.deleteConnect(w)
+
+		log.Debugf("[%v] close ", w.ID)
 	}
 }
+
 func (w *WsConnect) IsStop() bool {
 	return w.stop == 1
-}
-
-func (w *WsConnect) read() {
-	for !w.IsStop() {
-		_, data, err := w.conn.ReadMessage()
-		if err != nil {
-			break
-		} else {
-			zapLogger.Infof("[%v] read success:%+v", w.id, data)
-		}
-		if !w.processMsg(w, &Message{Data: data}) {
-			break
-		}
-		w.lastTick = time.Now()
-	}
-}
-
-func (w *WsConnect) processMsg(msgque *WsConnect, msg *Message) bool {
-	f := w.handler.GetHandlerFunc(msgque, msg)
-	if f == nil {
-		f = w.handler.OnProcessMsg
-	}
-	return f(msgque, msg)
-}
-
-func NewConnect(addr, url string, handler IMsgHandler) *WsConnect {
-	con := new(WsConnect)
-	con.id = atomic.AddUint32(&ConnectId, 1)
-	con.addr = addr
-	con.url = url
-	con.connTyp = ConnTypeListen
-	con.handler = handler
-	con.listener = &http.Server{Addr: addr}
-
-	ConnectMapSync.Lock()
-	ConnectMap[con.id] = con
-	ConnectMapSync.Unlock()
-	zapLogger.Infof("[%v] New Connect addr:%s url:%s", con.id, addr, url)
-	return con
 }
 
 func (w *WsConnect) ListenAndServe() {
@@ -155,22 +100,22 @@ func (w *WsConnect) ListenAndServe() {
 	http.HandleFunc(w.url, func(hw http.ResponseWriter, hr *http.Request) {
 		c, err := w.upgrader.Upgrade(hw, hr, nil)
 		if err != nil {
-			zapLogger.Errorf("[%v] accept failed err:%v", w.id, err)
+			log.Errorf("[%v] accept failed err:%v", w.ID, err)
 		} else {
 			Go(func() {
-				msgque := newWsAccept(c, w.handler)
-				if w.handler.OnNewMsgQue(msgque) {
+				msgque := newWsAccept(c, w.handler, w.timeout)
+				if w.handler.OnNewConnect(msgque) {
 					msgque.init = true
 					msgque.available = true
 					Go(func() {
-						zapLogger.Infof("[%v] process read", msgque.id)
+						log.Debugf("[%v] process read", msgque.ID)
 						msgque.read()
-						zapLogger.Infof("[%v] process read end", msgque.id)
+						log.Debugf("[%v] process read end", msgque.ID)
 					})
 					Go(func() {
-						zapLogger.Infof("[%v] process write", msgque.id)
+						log.Debugf("[%v] process write", msgque.ID)
 						msgque.write()
-						zapLogger.Infof("[%v] process write end", msgque.id)
+						log.Debugf("[%v] process write end", msgque.ID)
 					})
 				} else {
 					msgque.Stop()
@@ -181,23 +126,107 @@ func (w *WsConnect) ListenAndServe() {
 	w.listener.ListenAndServe()
 }
 
-func (w *WsConnect) isTimeout() bool {
-	d := time.Now().Sub(w.lastTick)
-	return int(d.Seconds()) > w.timeout
+func (w *WsConnect) read() {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Errorf("[%v] read panic err:%v", w.ID, err)
+		}
+		w.Stop()
+	}()
+
+	for !w.IsStop() {
+		_, data, err := w.conn.ReadMessage()
+		if err != nil {
+			log.Debugf("[%v] read failed:%+v", w.ID, err.Error())
+			break
+		} else {
+			log.Debugf("[%v] read success:%+v", w.ID, data)
+		}
+		if !w.processMsg(w, &Message{Data: data}) {
+			break
+		}
+		w.lastTick = time.Now()
+	}
 }
 
-func newWsAccept(conn *websocket.Conn, handler IMsgHandler) *WsConnect {
+func (w *WsConnect) write() {
+	defer func() {
+		if err := recover(); err != nil {
+			log.Errorf("[%v] write panic err:%v", w.ID, err)
+		}
+		if w.conn != nil {
+			w.conn.Close()
+		}
+		w.Stop()
+	}()
+
+	var m *Message
+	gm := GMManager.getGMessage()
+	tick := time.NewTimer(time.Second * time.Duration(w.timeout))
+	for !w.IsStop() {
+		select {
+		case m = <-w.cWrite:
+		case <-gm.c: //广播
+			if gm.fun == nil || gm.fun(w) {
+				m = gm.message
+			}
+			gm = GMManager.getGMessage()
+		case <-tick.C:
+			if isTimeout, offTimes := w.isTimeout(); isTimeout {
+				w.Stop()
+			} else {
+				tick.Reset(time.Second * time.Duration(offTimes))
+			}
+		}
+
+		if m == nil || m.Data == nil {
+			continue
+		}
+		err := w.conn.WriteMessage(websocket.BinaryMessage, m.Data)
+		if err != nil {
+			log.Errorf("[%v] write err:%v", w.ID, err)
+			break
+		} else {
+			log.Debugf("[%v] write success:%+v", w.ID, m)
+		}
+		m = nil
+		w.lastTick = time.Now()
+	}
+}
+
+func (w *WsConnect) processMsg(msgque *WsConnect, msg *Message) bool {
+	f := w.handler.GetHandlerFunc(msgque, msg)
+	if f == nil {
+		f = w.handler.OnProcessMsg
+	}
+	return f(msgque, msg)
+}
+
+func (w *WsConnect) isTimeout() (bool, int) {
+	if w.timeout == 0 {
+		return false, -1
+	}
+
+	d := time.Now().Sub(w.lastTick)
+	p := int(d.Seconds())
+	if p < w.timeout {
+		return false, w.timeout - p
+	}
+	log.Debugf("[%v] timeout timeout:%v", w.ID, w.timeout)
+	return true, p - w.timeout
+}
+
+func newWsAccept(conn *websocket.Conn, handler IMsgHandler, timeout int) *WsConnect {
 	con := new(WsConnect)
-	con.id = atomic.AddUint32(&ConnectId, 1)
-	con.timeout = 60
+	con.ID = ConnectManager.getConnectID()
 	con.cWrite = make(chan *Message, 64)
+	con.timeout = timeout
 	con.connTyp = ConnTypeAccept
 	con.handler = handler
 	con.conn = conn
 
-	ConnectMapSync.Lock()
-	ConnectMap[con.id] = con
-	ConnectMapSync.Unlock()
-	zapLogger.Infof("[%v] new WsAccept from addr:%s", con.id, conn.RemoteAddr().String())
+	ConnectManager.addConnect(con)
+
+	log.Debugf("[%v] new WsAccept from addr:%s", con.ID, conn.RemoteAddr().String())
 	return con
 }
