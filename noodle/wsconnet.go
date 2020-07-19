@@ -142,9 +142,11 @@ func (w *WsConnect) read() {
 		} else {
 			log.Debugf("[%v] read success:%+v", w.ID, data)
 		}
-		if !w.processMsg(w, &Message{Data: data}) {
-			break
+		m, err := w.handler.ParserMsg(data)
+		if err != nil {
+			continue
 		}
+		w.handler.HandlerFunc(w, m)
 		w.lastTick = time.Now()
 	}
 }
@@ -194,13 +196,13 @@ func (w *WsConnect) write() {
 	}
 }
 
-func (w *WsConnect) processMsg(msgque *WsConnect, msg *Message) bool {
-	f := w.handler.GetHandlerFunc(msgque, msg)
-	if f == nil {
-		f = w.handler.OnProcessMsg
-	}
-	return f(msgque, msg)
-}
+//func (w *WsConnect) processMsg(msgque *WsConnect, msg *Message) bool {
+//	f := w.handler.GetHandlerFunc(msgque, msg)
+//	if f == nil {
+//		f = w.handler.OnProcessMsg
+//	}
+//	return f(msgque, msg)
+//}
 
 func (w *WsConnect) isTimeout() (bool, int) {
 	if w.timeout == 0 {

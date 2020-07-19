@@ -3,11 +3,6 @@ package noodle
 var ConnectManager connectManager //连接管理
 var GMManager gMessageManager     //广播管理
 
-func init() {
-	ConnectManager.init()
-	GMManager.init()
-}
-
 type ConnType uint8
 
 const (
@@ -15,6 +10,11 @@ const (
 	ConnTypeConn                   //连接产生的
 	ConnTypeAccept                 //Accept产生的
 )
+
+func init() {
+	ConnectManager.init()
+	GMManager.init()
+}
 
 func Try(fun func(), handler func(interface{})) {
 	defer func() {

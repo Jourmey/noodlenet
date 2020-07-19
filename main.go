@@ -22,28 +22,29 @@ func (d *EchoHandler) OnDelConnect(c *noodle.WsConnect) {
 	log.Infof("[%d] Del连接", c.ID)
 }
 
-func (d *EchoHandler) OnProcessMsg(c *noodle.WsConnect, msg *noodle.Message) bool {
-	log.Info("implement me")
-	return true
+func (d *EchoHandler) ParserMsg(data []byte) (*noodle.Message, error) {
+	//if len(data) < noodle.MessageHeadSize {
+	//	return nil, noodle.ErrMsgLenTooShort
+	//}
+	//m := (*noodle.Message)(unsafe.Pointer(&data[0]))
+	//if m.Len > noodle.MaxMsgDataSize {
+	//	return nil, noodle.ErrMsgLenTooLong
+	//}
+	return &noodle.Message{Data: data}, nil
 }
 
-func (d *EchoHandler) GetHandlerFunc(c *noodle.WsConnect, msg *noodle.Message) noodle.HandlerFunc {
-	return func(c *noodle.WsConnect, msg *noodle.Message) bool {
-		if string(msg.Data) == "close" {
-			c.Stop()
+func (d *EchoHandler) HandlerFunc(c *noodle.WsConnect, msg *noodle.Message) {
+	if string(msg.Data) == "close" {
+		c.Stop()
+	} else if string(msg.Data) == "broadcast" {
+		noodle.GMManager.Send(msg, func(connect *noodle.WsConnect) bool {
+			log.Infof("[%d] 发送广播数据  message = %+v", connect.ID, msg)
 			return true
-		} else if string(msg.Data) == "broadcast" {
-			noodle.GMManager.Send(msg, func(connect *noodle.WsConnect) bool {
-				log.Infof("[%d] 发送广播数据  message = %+v", connect.ID, msg)
-				return true
-			})
+		})
 
-			return true
-		} else {
-			log.Infof("[%d] 接收数据  message = %+v", c.ID, msg)
-			b := c.Send(msg)
-			log.Infof("[%d] 发送数据  message = %+v", c.ID, msg)
-			return b
-		}
+	} else {
+		log.Infof("[%d] 接收数据  message = %+v", c.ID, msg)
+		_ = c.Send(msg)
+		log.Infof("[%d] 发送数据  message = %+v", c.ID, msg)
 	}
 }
