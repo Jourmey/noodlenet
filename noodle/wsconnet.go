@@ -103,22 +103,22 @@ func (w *WsConnect) ListenAndServe() {
 			log.Errorf("[%v] accept failed err:%v", w.ID, err)
 		} else {
 			Go(func() {
-				msgque := newWsAccept(c, w.handler, w.timeout)
-				if w.handler.OnNewConnect(msgque) {
-					msgque.init = true
-					msgque.available = true
+				connect := newWsAccept(c, w.handler, w.timeout)
+				if w.handler.OnNewConnect(connect) {
+					connect.init = true
+					connect.available = true
 					Go(func() {
-						log.Debugf("[%v] process read", msgque.ID)
-						msgque.read()
-						log.Debugf("[%v] process read end", msgque.ID)
+						log.Debugf("[%v] process read", connect.ID)
+						connect.read()
+						log.Debugf("[%v] process read end", connect.ID)
 					})
 					Go(func() {
-						log.Debugf("[%v] process write", msgque.ID)
-						msgque.write()
-						log.Debugf("[%v] process write end", msgque.ID)
+						log.Debugf("[%v] process write", connect.ID)
+						connect.write()
+						log.Debugf("[%v] process write end", connect.ID)
 					})
 				} else {
-					msgque.Stop()
+					connect.Stop()
 				}
 			})
 		}
@@ -142,7 +142,7 @@ func (w *WsConnect) read() {
 		} else {
 			log.Debugf("[%v] read success:%+v", w.ID, data)
 		}
-		m, err := w.handler.ParserMsg(data)
+		m, err := w.handler.MessageFromBytes(data)
 		if err != nil {
 			continue
 		}
@@ -181,10 +181,11 @@ func (w *WsConnect) write() {
 			}
 		}
 
-		if m == nil || m.Data == nil {
+		data, err := w.handler.MessageToBytes(m)
+		if err != nil {
 			continue
 		}
-		err := w.conn.WriteMessage(websocket.BinaryMessage, m.Data)
+		err = w.conn.WriteMessage(websocket.BinaryMessage, data)
 		if err != nil {
 			log.Errorf("[%v] write err:%v", w.ID, err)
 			break
@@ -195,14 +196,6 @@ func (w *WsConnect) write() {
 		w.lastTick = time.Now()
 	}
 }
-
-//func (w *WsConnect) processMsg(msgque *WsConnect, msg *Message) bool {
-//	f := w.handler.GetHandlerFunc(msgque, msg)
-//	if f == nil {
-//		f = w.handler.OnProcessMsg
-//	}
-//	return f(msgque, msg)
-//}
 
 func (w *WsConnect) isTimeout() (bool, int) {
 	if w.timeout == 0 {
