@@ -31,5 +31,7 @@ func (d *EchoHandler) MessageToBytes(msg *noodle.Message) ([]byte, error) {
 }
 
 func (d *EchoHandler) HandlerFunc(c *noodle.WsConnect, msg *noodle.Message) {
+	log.Infof("[%d] 接收数据  message = %+v", c.ID, msg)
 	_ = c.Send(msg)
+	log.Infof("[%d] 发送数据  message = %+v", c.ID, msg)
 }
