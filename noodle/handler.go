@@ -1,5 +1,7 @@
 package noodle
 
+type HandlerFunc func(connect *WsConnect, msg *Message) bool
+
 type IMsgHandler interface {
 	OnNewConnect(connect *WsConnect) bool           //新的消息队列
 	OnDelConnect(connect *WsConnect)                //消息队列关闭
