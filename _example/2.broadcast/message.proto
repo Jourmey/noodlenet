@@ -1,0 +1,12 @@
+syntax = "proto2";
+
+message pb
+{
+    uint16    Index = 1; //序号
+    uint32  Len = 2;     //数据长度
+    uint16    Error = 3; //错误码
+    uint8   Cmd = 4;  //命令
+    uint8   Act = 5;  //动作
+    uint16    Flags = 6;  //标记
+    []byte    Data = 7; //消息数据
+}
