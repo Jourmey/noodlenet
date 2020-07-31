@@ -1,10 +1,13 @@
 package noodle
 
-import "sync"
+import (
+	"noodlenet/noodle/msg"
+	"sync"
+)
 
 type gMessage struct {
 	c       chan struct{} // 触发广播使用
-	message *Message
+	message *msg.Pb
 	fun     func(connect *WsConnect) bool
 }
 
@@ -21,7 +24,7 @@ func (g *gMessageManager) init() {
 	g.gMessageArray[g.gId] = &gMessage{c: make(chan struct{})}
 }
 
-func (g *gMessageManager) Send(msg *Message, fun func(connect *WsConnect) bool) {
+func (g *gMessageManager) Send(msg *msg.Pb, fun func(connect *WsConnect) bool) {
 	if msg == nil {
 		return
 	}

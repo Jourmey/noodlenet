@@ -3,6 +3,7 @@ package main
 import (
 	log "noodlenet/deps/src/github.com/zapLogger"
 	"noodlenet/noodle"
+	"noodlenet/noodle/msg"
 )
 
 func main() {
@@ -22,15 +23,7 @@ func (d *EchoHandler) OnDelConnect(c *noodle.WsConnect) {
 	log.Infof("[%d] Del连接", c.ID)
 }
 
-func (d *EchoHandler) MessageFromBytes(data []byte) (*noodle.Message, error) {
-	return &noodle.Message{Data: data}, nil
-}
-
-func (d *EchoHandler) MessageToBytes(msg *noodle.Message) ([]byte, error) {
-	return msg.Data, nil
-}
-
-func (d *EchoHandler) HandlerFunc(c *noodle.WsConnect, msg *noodle.Message) {
+func (d *EchoHandler) HandlerFunc(c *noodle.WsConnect, msg *msg.Pb) {
 	log.Infof("[%d] 接收数据  message = %+v", c.ID, msg)
 	_ = c.Send(msg)
 	log.Infof("[%d] 发送数据  message = %+v", c.ID, msg)

@@ -5,15 +5,15 @@ const (
 	MaxMsgDataSize  uint32 = 1024 * 1024
 )
 
-type Message struct {
-	Index uint16 //序号
-	Len   uint32 //数据长度
-	Error uint16 //错误码
-	Cmd   uint8  //命令
-	Act   uint8  //动作
-	Flags uint16 //标记
-	Data  []byte //消息数据
-}
+//type Message struct {
+//	Index uint16 //序号
+//	Len   uint32 //数据长度
+//	Error uint16 //错误码
+//	Cmd   uint8  //命令
+//	Act   uint8  //动作
+//	Flags uint16 //标记
+//	Data  []byte //消息数据
+//}
 
 var (
 	ErrOk             = NewError("正确", 0)

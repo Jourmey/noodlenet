@@ -1,9 +1,11 @@
 package noodle
 
 import (
+	"github.com/golang/protobuf/proto"
 	"net/http"
 	"noodlenet/deps/src/github.com/gorilla/websocket"
 	log "noodlenet/deps/src/github.com/zapLogger"
+	"noodlenet/noodle/msg"
 	"sync/atomic"
 	"time"
 )
@@ -26,12 +28,14 @@ type WsConnect struct {
 	listener *http.Server
 
 	handler IMsgHandler
-	cWrite  chan *Message //写入通道
+	cWrite  chan *msg.Pb //写入通道
 
 	init      bool
 	available bool
 	stop      int32 //停止标记
 	lastTick  time.Time
+
+	UserToken interface{}
 }
 
 func NewConnect(addr, url string, handler IMsgHandler) *WsConnect {
@@ -49,12 +53,16 @@ func NewConnect(addr, url string, handler IMsgHandler) *WsConnect {
 	return con
 }
 
+func (w *WsConnect) Available() bool {
+	return w.available
+}
+
 func (w *WsConnect) SetTimeout(timeout int) *WsConnect {
 	w.timeout = timeout
 	return w
 }
 
-func (w *WsConnect) Send(m *Message) (re bool) {
+func (w *WsConnect) Send(m *msg.Pb) (re bool) {
 	if m == nil || !w.available {
 		return
 	}
@@ -142,11 +150,13 @@ func (w *WsConnect) read() {
 		} else {
 			log.Debugf("[%v] read success:%+v", w.ID, data)
 		}
-		m, err := w.handler.MessageFromBytes(data)
+
+		var m msg.Pb
+		err = proto.Unmarshal(data, &m)
 		if err != nil {
 			continue
 		}
-		w.handler.HandlerFunc(w, m)
+		w.handler.HandlerFunc(w, &m)
 		w.lastTick = time.Now()
 	}
 }
@@ -162,7 +172,7 @@ func (w *WsConnect) write() {
 		w.Stop()
 	}()
 
-	var m *Message
+	var m *msg.Pb
 	gm := GMManager.getGMessage()
 	tick := time.NewTimer(time.Second * time.Duration(w.timeout))
 	for !w.IsStop() {
@@ -181,8 +191,9 @@ func (w *WsConnect) write() {
 			}
 		}
 
-		data, err := w.handler.MessageToBytes(m)
+		data, err := proto.Marshal(m)
 		if err != nil {
+			log.Debugf("[%v] Marshal failed:%+v", w.ID, err)
 			continue
 		}
 		err = w.conn.WriteMessage(websocket.BinaryMessage, data)
@@ -214,7 +225,7 @@ func (w *WsConnect) isTimeout() (bool, int) {
 func newWsAccept(conn *websocket.Conn, handler IMsgHandler, timeout int) *WsConnect {
 	con := new(WsConnect)
 	con.ID = ConnectManager.getConnectID()
-	con.cWrite = make(chan *Message, 64)
+	con.cWrite = make(chan *msg.Pb, 64)
 	con.timeout = timeout
 	con.connTyp = ConnTypeAccept
 	con.handler = handler
