@@ -1,0 +1,10 @@
+syntax = "proto3";
+
+message pb
+{
+	uint32	Index = 1; 	//序号
+	uint32	Len = 2;    //数据长度
+	uint32	Cmd = 3;  	//命令
+	uint32	Error = 4; 	//错误码
+	bytes	Data = 5; 	//消息数据
+}
