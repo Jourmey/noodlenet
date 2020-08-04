@@ -1,72 +1,128 @@
 <html>
+
 <head>
-    <script type="text/javascript" src="./msg_pb.js"></script>
+    <script type="text/javascript" src="./bundle.js"></script>
+    <style>
+        nav {
+            line-height: 30px;
+            background-color: #eeeeee;
+            height: 300px;
+            width: 300px;
+            float: left;
+            padding: 5px;
+        }
+        
+        section {
+            width: 350px;
+            float: left;
+            padding: 10px;
+        }
+    </style>
 </head>
 
 <body>
-<input id="login"></input>
-<button onclick="onclick1()">登陆</button>
-<input id="globalChat"></input>
-<button onclick="onclick2()">发送全局聊天</button>
-<input id="chatId"></input>
-<input id="chatData"></input>
-<button onclick="onclick3()">发送单人聊天</button>
-<p id="p1"></p>
-<script>
-    var ws
+    <nav>
+        <label>您的ID</label>
+        <label id="noodleID"></label>
+        <p>
+            <input id="login"></input>
+            <button onclick="onclick1()">登陆</button>
+        </p>
 
-    function onclick1() {
-        var inputDom = document.getElementById("login");
-        var name = inputDom.value
+        <p>
+            <input id="globalChat"></input>
+            <button onclick="onclick2()">发送全局聊天</button>
+        </p>
+        <p>
+            <input id="chatId"></input>
+            <label>目标ID</label>
+            <input id="chatData"></input>
+            <button onclick="onclick3()">发送单人聊天</button>
+        </p>
+    </nav>
+    <section>
+        <p id="p1"></p>
+    </section>
+    <script>
+        var ws
+        var encoder = new TextEncoder('utf8');
+        var decoder = new TextDecoder('utf8');
+        var myID = 0;
 
-        // var pb = new proto.pb();
-        // pb.setData("284655785|Login")
-        // pb.setCmd(0)
-        // var bytes = pb.serializeBinary();
+        function onclick1() {
+            var inputDom = document.getElementById("login");
+            var name = inputDom.value
 
-        ws = new WebSocket("ws://127.0.0.1:5000/")
-        ws.onmessage = function (e) {
-            console.log(e.data);
-            var reader = new FileReader();
-            reader.readAsArrayBuffer(e.data);
-            reader.onload = function (evt) {
-                if (evt.target.readyState == FileReader.DONE) {
+            ws = new WebSocket("ws://127.0.0.1:5000/")
+            ws.onmessage = function(e) {
+                console.log(e.data);
+                var reader = new FileReader();
+                reader.readAsArrayBuffer(e.data);
+                reader.onload = function(evt) {
+                    if (evt.target.readyState == FileReader.DONE) {
 
-                    document.getElementById("p1").innerHTML = document.getElementById("p1").innerHTML + evt.target.result + "<br>";
+                        var pb = proto.pb.deserializeBinary(evt.target.result);
+                        var cmd = pb.getCmd()
+
+                        var text = decoder.decode(pb.getData())
+                        console.log("recv cmd = ", pb.getCmd(), "text = ", text);
+
+                        if (cmd === 5) {
+                            document.getElementById("p1").innerHTML = document.getElementById("p1").innerHTML + "recv from server 全局聊天:" + text + "<br>";
+                        } else if (cmd === 1) {
+                            document.getElementById("p1").innerHTML = document.getElementById("p1").innerHTML + "recv from server 登陆成功 分配ID为:" + text + "<br>";
+                            myID = pb.getIndex()
+                            document.getElementById("noodleID").innerHTML = myID
+                        } else if (cmd === 3) {
+                            document.getElementById("p1").innerHTML = document.getElementById("p1").innerHTML + "recv from server 单人聊天:" + text + "<br>";
+                        }
+                    }
                 }
+            }
+
+            ws.onopen = function() {
+                var pb = new proto.pb();
+                var data = encoder.encode(name);
+
+                pb.setData(data)
+                pb.setCmd(0)
+
+                var bytes = pb.serializeBinary();
+
+                ws.send(bytes)
             }
         }
 
-        ws.onopen = function () {
-            ws.send(name)
+        function onclick2() { //广播 4
+            var inputDom = document.getElementById("globalChat");
+            var text = inputDom.value;
+
+            var data = encoder.encode(text);
+            var pb = new proto.pb();
+            pb.setData(data);
+            pb.setIndex(myID);
+            pb.setCmd(4);
+            var bytes = pb.serializeBinary();
+
+            ws.send(bytes)
         }
-    }
 
-    function onclick2() {
-        var inputDom = document.getElementById("globalChat");
-        var text = inputDom.value
+        function onclick3() { // 单播 2
+            var chatID = document.getElementById("chatId").value
+            var chatData = document.getElementById("chatData").value
 
-        // var pb = new proto.pb();
-        // pb.setData("284655785|onclick2")
-        // pb.setCmd(1)
-        // var bytes = pb.serializeBinary();
+            var data = encoder.encode(chatData);
+            var pb = new proto.pb();
+            pb.setData(data);
+            pb.setIndex(chatID);
+            pb.setCmd(2);
+            var bytes = pb.serializeBinary();
 
-        ws.send(text)
-    }
-
-    function onclick3() {
-        var chatID = document.getElementById("chatId").value
-        var chatData = document.getElementById("chatData").value
-
-        var pb = new proto.pb();
-        pb.setData("284655785|onclick3")
-        pb.setCmd(1)
-        var bytes = pb.serializeBinary();
-
-        ws.send(chatID + chatData)
-    }
-</script>
+            ws.send(bytes)
+        }
+    </script>
 
 
 </body>
-</html>  
+
+</html>

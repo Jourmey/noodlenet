@@ -4,12 +4,15 @@ import (
 	"noodlenet/deps/src/github.com/zapLogger"
 	"noodlenet/noodle"
 	"noodlenet/noodle/msg"
+	"sync"
 )
 
-var gamerMap = map[string]*noodle.WsConnect{}
+var gamerMap = map[uint32]*noodle.WsConnect{}
+var currentID uint32 = 0
+var lock sync.Mutex
 
 func main() {
-	zapLogger.InitLogger("debug", zapLogger.Logc)
+	//zapLogger.InitLogger("debug", zapLogger.Logc)
 
 	hand := NewChatHandler()
 	hand.Register(LogIn2S, HandleLogIn2S)
@@ -19,32 +22,57 @@ func main() {
 }
 
 func HandleLogIn2S(connect *noodle.WsConnect, c *msg.Pb) { //登陆
-	gamerMap[string(c.Data)] = connect
+	zapLogger.Infof("登陆信息 , data = %s", c.Data)
 	s2c := &msg.Pb{
 		Cmd:  LogIn2C,
-		Data: []byte("登陆成功"),
+		Data: []byte("登陆成功！"),
 	}
-	connect.Send(s2c)
+	lock.Lock()
+	currentID++
+	s2c.Index = currentID
+	lock.Unlock()
+
+	if connect.Send(s2c) {
+		gamerMap[s2c.Index] = connect
+	}
 }
 
-func HandleChat2S(connect *noodle.WsConnect, c *msg.Pb) { //广播
+func HandleBChat2S(connect *noodle.WsConnect, c *msg.Pb) { //广播
+	zapLogger.Infof("广播信息 , data = %s", c.Data)
+
 	s2c := &msg.Pb{
-		Cmd:  Chat2S,
-		Data: []byte("广播:"),
+		Cmd:   BChat2C,
+		Data:  c.Data,
+		Index: c.Index,
 	}
-	s2c.Data = append(s2c.Data, c.Data...)
 
 	noodle.GMManager.Send(s2c, func(con *noodle.WsConnect) bool {
-		return connect != con
+		//return connect != con
+		return true
 	})
 }
 
-func HandleBChat2S(connect *noodle.WsConnect, c *msg.Pb) { //单播
-	if mq, ok := gamerMap[string(c.Data)]; ok && mq.Available() {
-		mq.Send(c)
+func HandleChat2S(connect *noodle.WsConnect, c *msg.Pb) { //单播
+	zapLogger.Infof("单播信息 , data = %s", c.Data)
+
+	if mq, ok := gamerMap[c.Index]; ok && mq.Available() {
+		s2c := &msg.Pb{
+			Cmd:  Chat2C,
+			Data: c.Data,
+		}
+		s2cR := &msg.Pb{
+			Cmd: Chat2C,
+		}
+		if mq.Send(s2c) {
+			s2cR.Data = []byte("发送成功")
+		} else {
+			s2cR.Data = []byte("发送失败")
+		}
+		connect.Send(s2cR)
+
 	} else {
 		s2c := &msg.Pb{
-			Cmd:  BChat2S,
+			Cmd:  Chat2C,
 			Data: []byte("用户已离线"),
 		}
 		connect.Send(s2c)

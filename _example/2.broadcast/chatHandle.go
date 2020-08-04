@@ -12,7 +12,9 @@ const (
 	LogIn2S uint32 = iota // 登陆
 	LogIn2C               // 登陆结果
 	Chat2S                // 单数据
+	Chat2C                // 单数据
 	BChat2S               // 广播数据
+	BChat2C               // 广播数据
 )
 
 type UserID string
