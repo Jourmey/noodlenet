@@ -53,6 +53,10 @@
             var inputDom = document.getElementById("login");
             var name = inputDom.value
 
+            if (null != ws && ws.readyState === ws.OPEN) {
+                ws.close();
+            }
+
             ws = new WebSocket("ws://127.0.0.1:5000/")
             ws.onmessage = function(e) {
                 console.log(e.data);
@@ -70,8 +74,8 @@
                         if (cmd === 5) {
                             document.getElementById("p1").innerHTML = document.getElementById("p1").innerHTML + "recv from server 全局聊天:" + text + "<br>";
                         } else if (cmd === 1) {
-                            document.getElementById("p1").innerHTML = document.getElementById("p1").innerHTML + "recv from server 登陆成功 分配ID为:" + text + "<br>";
                             myID = pb.getIndex()
+                            document.getElementById("p1").innerHTML = document.getElementById("p1").innerHTML + "recv from server 登陆成功:"  + text +  +"分配ID为:"+myID+"<br>";
                             document.getElementById("noodleID").innerHTML = myID
                         } else if (cmd === 3) {
                             document.getElementById("p1").innerHTML = document.getElementById("p1").innerHTML + "recv from server 单人聊天:" + text + "<br>";
