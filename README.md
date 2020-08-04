@@ -7,9 +7,12 @@
 
 ## 更新
 2020年7月18日 超时机制
+2020年7月30日 使用proto
 
 ## 演示
 #### 演示1
 Echo服务器
 #### 演示2
 简单的聊天工具，示例图片如下：
+![example01](https://github.com/Jourmey/noodlenet/blob/master/_example/2.broadcast/view/example01.jpg)
+![example02](https://github.com/Jourmey/noodlenet/blob/master/_example/2.broadcast/view/example02.jpg)
